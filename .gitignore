@@ -1,0 +1,12 @@
+.gradle/
+build/
+tools/
+*.class
+out/
+work/
+
+.codegraph/
+.omo/
+*.log
+
+test/

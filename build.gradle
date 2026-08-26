@@ -1,0 +1,70 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'dev.jnic'
+version = '1.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.ow2.asm:asm:9.9.1'
+    implementation 'org.ow2.asm:asm-tree:9.9.1'
+    implementation 'org.ow2.asm:asm-commons:9.9.1'
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'jnic.Main'
+}
+
+// Compile the injected loader as real Java sources; the resulting .class files are
+// embedded as resources of the obfuscator jar and copied verbatim into protected jars.
+// The loader intentionally depends only on JDK APIs.
+def compileLoader = tasks.register('compileLoader', JavaCompile) {
+    source = fileTree(dir: 'loader-src')
+    destinationDirectory = layout.buildDirectory.dir('loader-classes')
+    classpath = files()
+    options.release = 11
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDir compileLoader.map { it.destinationDirectory }
+        }
+    }
+}
+
+processResources {
+    dependsOn compileLoader
+}
+
+tasks.register('fatJar', Jar) {
+    archiveBaseName = 'jnic'
+    archiveClassifier = ''
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest { attributes 'Main-Class': 'jnic.Main' }
+    from sourceSets.main.output
+    from configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'module-info.class'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events 'failed', 'skipped'
+        exceptionFormat = 'full'
+    }
+}
